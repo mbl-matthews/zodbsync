@@ -347,3 +347,29 @@ class TestSync():
         watcher.step()
         assert open(root + 'test1' + src).read() == 'test1'
         assert open(root + 'test2' + src).read() == 'test2'
+
+    def test_watch_playback(self, conn):
+        """
+        Create a Folder, record, initialize watcher. Then change the title of
+        the folder on the file system, play the change back and do another step
+        with the watcher. This checks for a bug where the watcher records the
+        old state in this situation.
+        """
+        path = self.repo.path + '/__root__/test/__meta__'
+        with conn.tm:
+            conn.app.manage_addProduct['OFSP'].manage_addFolder(id='test')
+        watcher = self.runner('watch')
+        watcher.setup()
+        watcher.step()
+        with open(path) as f:
+            meta = f.read()
+        with open(path, 'w') as f:
+            f.write(meta.replace("('title', '')", "('title', 'test')"))
+
+        playback = self.runner('playback', '/test')
+        playback.run()
+
+        watcher.step()
+        with open(path) as f:
+            meta = f.read()
+        assert "('title', 'test')" in meta
